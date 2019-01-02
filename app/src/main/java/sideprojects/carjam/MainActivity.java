@@ -1,11 +1,20 @@
 package sideprojects.carjam;
 
 import android.Manifest;
+
+import java.util.Dictionary;
+import java.util.HashMap;
+import java.util.Hashtable;
+import java.util.Map;
+import java.util.regex.*;
 import android.content.BroadcastReceiver;
+import android.content.ContentResolver;
 import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
 import android.content.pm.PackageManager;
+import android.database.Cursor;
+import android.net.Uri;
 import android.provider.Telephony;
 import android.support.annotation.IdRes;
 import android.support.annotation.NonNull;
@@ -14,6 +23,7 @@ import android.support.v4.content.ContextCompat;
 import android.support.v7.app.AppCompatActivity;
 import android.os.Bundle;
 import android.telephony.SmsMessage;
+import android.text.method.ScrollingMovementMethod;
 import android.util.Log;
 import android.view.View;
 import android.widget.ImageView;
@@ -48,6 +58,8 @@ public class MainActivity extends AppCompatActivity {
     private SpotifyAppRemote mSpotifyAppRemote;
     boolean mIsReceiverRegistered = false;
     private SmsReciever mReciever;
+    private Integer queueLimitPeriod = 2;
+    private Map<String, Integer> queueLimit;
     //private IntentFilter mConnectionChangeIntentFilter = new IntentFilter();
     //private SmsReceiver smsReceiver = new SmsReceiver();
 
@@ -57,6 +69,7 @@ public class MainActivity extends AppCompatActivity {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
+        queueLimit = new HashMap<String,Integer>();
         //updateMessage(" ");
         //registerReceiver(smsReceiver, mConnectionChangeIntentFilter);
         AuthenticationRequest.Builder builder =
@@ -64,21 +77,19 @@ public class MainActivity extends AppCompatActivity {
         builder.setScopes(new String[]{"streaming"});
         AuthenticationRequest request = builder.build();
         AuthenticationClient.openLoginActivity(this, REQUEST_CODE, request);
-        System.out.println("Roast");
-        //connected();
     }
 
     @Override
     protected void onStart() {
         super.onStart();
-        Toast.makeText(this, "Remote Connected", Toast.LENGTH_SHORT).show();
+
         // We will start writing our code here.
     }
 
     @Override
     protected void onResume(){
         super.onResume();
-        Toast.makeText(this, "Resume", Toast.LENGTH_SHORT).show();
+        //Toast.makeText(this, "Resume", Toast.LENGTH_SHORT).show();
         if (mReciever == null)
             mReciever = new SmsReciever();
         registerReceiver(mReciever, new IntentFilter("android.provider.Telephony.SMS_RECEIVED"));
@@ -106,7 +117,7 @@ public class MainActivity extends AppCompatActivity {
                     }
                 });
 
-        // Instantiate the RequestQueue.
+        /*// Instantiate the RequestQueue.
         RequestQueue queue = Volley.newRequestQueue(this);
         String url ="https://google.com";
 
@@ -127,7 +138,7 @@ public class MainActivity extends AppCompatActivity {
         });
 
         // Add the request to the RequestQueue.
-        queue.add(stringRequest);
+        queue.add(stringRequest);*/
         // Then we will write some more code here
         ActivityCompat.requestPermissions(this,
                 new String[]{Manifest.permission.RECEIVE_SMS},
@@ -143,13 +154,6 @@ public class MainActivity extends AppCompatActivity {
             Log.i("TAG", "MY_PERMISSIONS_REQUEST_SMS_RECEIVE --> YES");
 
         }
-    }
-
-
-    public void broadcastIntent(View view){
-        Intent intent = getIntent();
-        String message = intent.getStringExtra("message");
-        updateMessage(message);
     }
 
     @Override
@@ -170,7 +174,7 @@ public class MainActivity extends AppCompatActivity {
                 // Response was successful and contains auth token
                 case TOKEN:
                     // Handle successful response
-                    Toast.makeText(this, "Logged In", Toast.LENGTH_SHORT).show();
+                    Toast.makeText(this, "Remote Connected", Toast.LENGTH_SHORT).show();
                     ConnectionParams connectionParams =
                             new ConnectionParams.Builder(CLIENT_ID)
                                     .setRedirectUri(REDIRECT_URI)
@@ -211,11 +215,11 @@ public class MainActivity extends AppCompatActivity {
 
     @Override
     protected void onPause(){
-        if (mIsReceiverRegistered) {
+        /*if (mIsReceiverRegistered) {
             unregisterReceiver(mReciever);
             mReciever = null;
             mIsReceiverRegistered = false;
-        }
+        }*/
         super.onPause();
 
     }
@@ -223,6 +227,7 @@ public class MainActivity extends AppCompatActivity {
     public void updateMessage(String messageBody) {
         TextView smsMessage = (TextView) findViewById(R.id.smsMessage);
         smsMessage.setText(messageBody);
+        smsMessage.setMovementMethod(new ScrollingMovementMethod());
         System.out.println("It worked");
     }
 
@@ -233,37 +238,82 @@ public class MainActivity extends AppCompatActivity {
 
 
             Bundle data  = intent.getExtras();
-            System.out.println("HELLOP");
             Object[] pdus = (Object[]) data.get("pdus");
-
+            String fullMessage = "";
+            String senderNumber= "";
             for(int i=0;i<pdus.length;i++){
                 SmsMessage smsMessage = SmsMessage.createFromPdu((byte[]) pdus[i]);
-
                 String sender = smsMessage.getDisplayOriginatingAddress();
+                senderNumber = sender;
                 //Check the sender to filter messages which we require to read
                 String messageBody = smsMessage.getMessageBody();
-                Toast.makeText(context, messageBody, Toast.LENGTH_LONG).show();
-                updateMessage(messageBody);
-                System.out.println("it didnt work");
-                //MainActivity.updateMessage()
-                //TextView smsTextView = obj.getSMSTextView();
-                //smsTextView.setText("roaster");
-                //Intent temp = new Intent(context, MainActivity.class);
-                //temp.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-                //temp.putExtra("message", messageBody);
-                //context.startActivity(temp);
+                fullMessage += messageBody;
+                //System.out.println(messageBody);
+                //System.out.println(messageBody.substring(6,15));
+                //messageBody = " a song f";
+                //System.out.println(messageBody);
+                //System.out.println(" ");
             }
-            //Toast.makeText(context, "something received", Toast.LENGTH_SHORT).show();
-            //final TextView smsMessage  = ((Activity) context).findViewById(R.id.smsMessage);
-            //smsMessage.setText("It worked roaster!");
-            //MainActivity.getInstace().updateSMSMessage("wqerqwer");
-            //MainActivity.smsTextView = "ROASTER";
+            //System.out.println(fullMessage);
+            Pattern p2 = Pattern.compile("a song for you");
+            Matcher matcher2 = p2.matcher(fullMessage);
+            if(matcher2.find()){
+                //String temp = messageBody.substring(6, 15);
+                //if (temp.equals(" a song f")) {
+                System.out.println("In the loop");
+                updateMessage(fullMessage);
+                Pattern p = Pattern.compile("https.*\\?");
+                Matcher matcher = p.matcher(fullMessage);
+                if (matcher.find()) {
+                    System.out.println(matcher.group());
+                    String songToQueue = matcher.group();
+                    String songId = songToQueue.substring(31,songToQueue.length()-1);
+                    System.out.println(songId);
+                    addToQueue(senderNumber, songId);
+                    deleteText(context, senderNumber, fullMessage);
+                }
 
+            } else {
+                System.out.println("Didnot go in the loop");
+            }
         }
-
-        /*public static void bindListener(SmsListener listener) {
-            mListener = listener;
-        }*/
+    }
+    private void deleteText(Context context, String sender, String message){
+        Uri inbox = Uri.parse("content://sms/inbox");
+        String[] columns = new String[] { "_id","address", "body" };
+        Cursor c = context.getContentResolver().query(inbox, columns, null,
+                null, null);
+        boolean MatchFound=false;
+        c.moveToNext();
+        while(!MatchFound){
+            Integer index = c.getColumnIndexOrThrow("body");
+            String dataMessage = c.getString(index);
+            System.out.println(dataMessage);
+            if(dataMessage.equals(message)){
+                System.out.println("Found a match");
+                MatchFound=true;
+            }
+            c.moveToNext();
+        }
+    }
+    private void addToQueue(String sender, String songId) {
+        System.out.println(sender);
+        if(queueLimit.containsKey(sender)){
+            if(queueLimit.get(sender) < queueLimitPeriod){
+                queueLimit.put(sender, queueLimit.get(sender)+1);
+                mSpotifyAppRemote.getPlayerApi().queue("spotify:track:"+songId);
+                Toast.makeText(this, "New Song Added to Queue", Toast.LENGTH_LONG).show();
+            }
+            else{
+                Toast.makeText(this, "Sender is over the limit! Try again later. ", Toast.LENGTH_SHORT);
+                Toast.makeText(this, "Sender is over the limit!" , Toast.LENGTH_LONG).show();
+            }
+        }
+        else{
+            queueLimit.put(sender, 1);
+            mSpotifyAppRemote.getPlayerApi().queue("spotify:track:"+songId);
+            Toast.makeText(this, "New Song Added to Queue", Toast.LENGTH_LONG).show();
+        }
 
     }
 

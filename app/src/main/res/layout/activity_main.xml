@@ -50,30 +50,20 @@
         app:layout_constraintTop_toBottomOf="@+id/currentSongName" />
 
     <TextView
-        android:id="@+id/requestResponse"
-        android:layout_width="247dp"
-        android:layout_height="141dp"
-        android:layout_marginTop="40dp"
-        android:layout_marginEnd="14dp"
-        android:text="TextView"
-        android:textAlignment="center"
-        android:textSize="24sp"
-        app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintHorizontal_bias="0.56"
-        app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toBottomOf="@+id/currentSongImage" />
-
-    <TextView
         android:id="@+id/smsMessage"
-        android:layout_width="244dp"
-        android:layout_height="114dp"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
         android:layout_marginTop="8dp"
-        android:text="TextView"
+        android:text=" "
         android:textAlignment="center"
-        android:textSize="36sp"
+        android:autoSizeMinTextSize="12dp"
         app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toBottomOf="@+id/requestResponse" />
+        app:layout_constraintTop_toBottomOf="@+id/currentSongImage"
+        android:maxLines="20"
+        android:scrollbars="vertical"/>
+
+
 
 </android.support.constraint.ConstraintLayout>
