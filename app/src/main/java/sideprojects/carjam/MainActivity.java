@@ -46,8 +46,9 @@ public class MainActivity extends AppCompatActivity {
     private static final String REDIRECT_URI = "http://localhost:8888/callback";
     private static final String CLIENT_ID = "0407da6387be4e3aba45344f618f48cf";
     private SpotifyAppRemote mSpotifyAppRemote;
-    private BroadcastReceiver reciever;
-    private IntentFilter mConnectionChangeIntentFilter = new IntentFilter();
+    boolean mIsReceiverRegistered = false;
+    private SmsReciever mReciever;
+    //private IntentFilter mConnectionChangeIntentFilter = new IntentFilter();
     //private SmsReceiver smsReceiver = new SmsReceiver();
 
     private int MY_PERMISSIONS_REQUEST_SMS_RECEIVE = 10;
@@ -78,6 +79,10 @@ public class MainActivity extends AppCompatActivity {
     protected void onResume(){
         super.onResume();
         Toast.makeText(this, "Resume", Toast.LENGTH_SHORT).show();
+        if (mReciever == null)
+            mReciever = new SmsReciever();
+        registerReceiver(mReciever, new IntentFilter("android.provider.Telephony.SMS_RECEIVED"));
+        mIsReceiverRegistered = true;
         //connected();
     }
 
@@ -204,11 +209,62 @@ public class MainActivity extends AppCompatActivity {
         }
     }
 
+    @Override
+    protected void onPause(){
+        if (mIsReceiverRegistered) {
+            unregisterReceiver(mReciever);
+            mReciever = null;
+            mIsReceiverRegistered = false;
+        }
+        super.onPause();
+
+    }
 
     public void updateMessage(String messageBody) {
         TextView smsMessage = (TextView) findViewById(R.id.smsMessage);
         smsMessage.setText(messageBody);
         System.out.println("It worked");
+    }
+
+    private class SmsReciever extends BroadcastReceiver {
+
+        @Override
+        public void onReceive(Context context, Intent intent) {
+
+
+            Bundle data  = intent.getExtras();
+            System.out.println("HELLOP");
+            Object[] pdus = (Object[]) data.get("pdus");
+
+            for(int i=0;i<pdus.length;i++){
+                SmsMessage smsMessage = SmsMessage.createFromPdu((byte[]) pdus[i]);
+
+                String sender = smsMessage.getDisplayOriginatingAddress();
+                //Check the sender to filter messages which we require to read
+                String messageBody = smsMessage.getMessageBody();
+                Toast.makeText(context, messageBody, Toast.LENGTH_LONG).show();
+                updateMessage(messageBody);
+                System.out.println("it didnt work");
+                //MainActivity.updateMessage()
+                //TextView smsTextView = obj.getSMSTextView();
+                //smsTextView.setText("roaster");
+                //Intent temp = new Intent(context, MainActivity.class);
+                //temp.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                //temp.putExtra("message", messageBody);
+                //context.startActivity(temp);
+            }
+            //Toast.makeText(context, "something received", Toast.LENGTH_SHORT).show();
+            //final TextView smsMessage  = ((Activity) context).findViewById(R.id.smsMessage);
+            //smsMessage.setText("It worked roaster!");
+            //MainActivity.getInstace().updateSMSMessage("wqerqwer");
+            //MainActivity.smsTextView = "ROASTER";
+
+        }
+
+        /*public static void bindListener(SmsListener listener) {
+            mListener = listener;
+        }*/
+
     }
 
 
