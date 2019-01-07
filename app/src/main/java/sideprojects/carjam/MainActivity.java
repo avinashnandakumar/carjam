@@ -2,23 +2,37 @@ package sideprojects.carjam;
 
 import android.Manifest;
 
+import java.io.BufferedReader;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.InputStreamReader;
+import java.net.HttpURLConnection;
+import java.net.URL;
+import java.sql.SQLOutput;
+import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Dictionary;
 import java.util.HashMap;
 import java.util.Hashtable;
 import java.util.List;
 import java.util.Map;
+import java.util.Queue;
 import java.util.regex.*;
 import android.content.BroadcastReceiver;
 import android.content.ContentResolver;
+import android.content.ContentUris;
 import android.content.ContentValues;
 import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
 import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
+import android.content.res.ColorStateList;
 import android.database.Cursor;
+import android.graphics.Bitmap;
+import android.graphics.BitmapFactory;
 import android.net.Uri;
+import android.provider.ContactsContract;
 import android.provider.Telephony;
 import android.support.annotation.IdRes;
 import android.support.annotation.NonNull;
@@ -27,6 +41,7 @@ import android.support.v4.content.ContextCompat;
 import android.support.v7.app.ActionBar;
 import android.support.v7.app.AppCompatActivity;
 import android.os.Bundle;
+import android.support.v7.util.SortedList;
 import android.support.v7.widget.CardView;
 import android.support.v7.widget.LinearLayoutManager;
 import android.support.v7.widget.RecyclerView;
@@ -36,13 +51,17 @@ import android.util.Log;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
+import android.widget.BaseAdapter;
 import android.widget.ImageView;
 import android.widget.TextView;
 import android.widget.Toast;
 
 
+import com.android.volley.AuthFailureError;
 import com.android.volley.Response;
 import com.android.volley.VolleyError;
+import com.android.volley.toolbox.HttpResponse;
+import com.android.volley.toolbox.JsonObjectRequest;
 import com.android.volley.toolbox.StringRequest;
 import com.android.volley.toolbox.Volley;
 import com.spotify.android.appremote.api.ConnectionParams;
@@ -52,6 +71,7 @@ import com.spotify.android.appremote.api.SpotifyAppRemote;
 import com.spotify.protocol.client.CallResult;
 import com.spotify.protocol.client.Result;
 import com.spotify.protocol.client.Subscription;
+import com.spotify.protocol.types.Image;
 import com.spotify.protocol.types.PlayerState;
 import com.spotify.protocol.types.Track;
 import com.spotify.sdk.android.authentication.AuthenticationClient;
@@ -60,13 +80,27 @@ import com.spotify.sdk.android.authentication.AuthenticationResponse;
 import com.android.volley.RequestQueue;
 import com.android.volley.Request;
 
+import org.json.JSONObject;
 import org.w3c.dom.Text;
+
+import kaaes.spotify.webapi.android.SpotifyApi;
+import kaaes.spotify.webapi.android.SpotifyCallback;
+import kaaes.spotify.webapi.android.SpotifyService;
+import kaaes.spotify.webapi.android.models.Album;
+
+
+import retrofit.Callback;
+import retrofit.RequestInterceptor;
+import retrofit.RestAdapter;
+import retrofit.RetrofitError;
 
 
 public class MainActivity extends AppCompatActivity {
     private static final int REQUEST_CODE = 1337;
     private static final String REDIRECT_URI = "http://localhost:8888/callback";
     private static final String CLIENT_ID = "0407da6387be4e3aba45344f618f48cf";
+    private static String spotifyToken = "";
+
     private SpotifyAppRemote mSpotifyAppRemote;
     boolean mIsReceiverRegistered = false;
     private SmsReciever mReciever;
@@ -74,6 +108,9 @@ public class MainActivity extends AppCompatActivity {
     private Map<String, Integer> queueLimit;
     RecyclerView recyclerView;
     QueueListAdapter QLA;
+    private SpotifyService spotify;
+
+    String[] inter = new String[3];
 
     private int MY_PERMISSIONS_REQUEST_SMS_RECEIVE = 10;
 
@@ -82,6 +119,8 @@ public class MainActivity extends AppCompatActivity {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
         queueLimit = new HashMap<String,Integer>();
+        //requestAuthorization();
+        //requestWithSomeHttpHeaders("28zGTndSQj4JT9nCPHRoTV");
         QLA = new QueueListAdapter();
         recyclerView = (RecyclerView) findViewById(R.id.recyclerView);
         recyclerView.setHasFixedSize(true);
@@ -94,6 +133,7 @@ public class MainActivity extends AppCompatActivity {
         builder.setScopes(new String[]{"streaming"});
         AuthenticationRequest request = builder.build();
         AuthenticationClient.openLoginActivity(this, REQUEST_CODE, request);
+
     }
 
     @Override
@@ -107,10 +147,10 @@ public class MainActivity extends AppCompatActivity {
     protected void onResume(){
         super.onResume();
         //Toast.makeText(this, "Resume", Toast.LENGTH_SHORT).show();
-        if (mReciever == null)
+        /*if (mReciever == null)
             mReciever = new SmsReciever();
         registerReceiver(mReciever, new IntentFilter("android.provider.Telephony.SMS_RECEIVED"));
-        mIsReceiverRegistered = true;
+        mIsReceiverRegistered = true;*/
         //connected();
     }
 
@@ -207,32 +247,109 @@ public class MainActivity extends AppCompatActivity {
                         songName.setText(track.name);
                         songArtist.setText(track.artist.name);
                         mSpotifyAppRemote.getImagesApi().getImage(track.imageUri).setResultCallback(image -> {songImage.setImageBitmap(image);});
+                        if(playerState.isPaused){
+                            findViewById(R.id.play).setBackgroundResource(android.R.drawable.ic_media_play);
+                        }
+                        else{
+
+                            findViewById(R.id.play).setBackgroundResource(android.R.drawable.ic_media_pause);
+
+                        }
+                        mSpotifyAppRemote.getUserApi().getLibraryState(track.uri).setResultCallback(libraryState -> {
+                            if(libraryState.isAdded){
+                                findViewById(R.id.save).setBackgroundResource(android.R.drawable.btn_star_big_on);
+                                //findViewById(R.id.save).setBackgroundColor(getResources().getColor(R.color.colorPrimary));
+                            }
+                            else{
+                                findViewById(R.id.save).setBackgroundResource(android.R.drawable.btn_star_big_off);
+                                //findViewById(R.id.save).setBackgroundColor(getResources().getColor(R.color.colorPrimary));
+                            }
+                                });
                         //Toast.makeText(this, track.name, Toast.LENGTH_SHORT).show();
                     }
                 });
+        /*SpotifyApi api = new SpotifyApi();
+        System.out.println(spotifyToken);
+        api.setAccessToken(spotifyToken);
+        SpotifyService roasterSpotify = api.getService();*/
+        //
 
-        /*// Instantiate the RequestQueue.
-        RequestQueue queue = Volley.newRequestQueue(this);
-        String url ="https://google.com";
 
-        final TextView songQueue = (TextView) findViewById(R.id.requestResponse);
-        // Request a string response from the provided URL.
-        StringRequest stringRequest = new StringRequest(Request.Method.GET, url,
-                new Response.Listener<String>() {
+        final String accessToken = spotifyToken;
+
+        RestAdapter restAdapter = new RestAdapter.Builder()
+                .setEndpoint(SpotifyApi.SPOTIFY_WEB_API_ENDPOINT)
+                .setRequestInterceptor(new RequestInterceptor() {
                     @Override
-                    public void onResponse(String response) {
-                        // Display the first 500 characters of the response string.
-                        songQueue.setText("Response is: "+ response.substring(0,500));
+                    public void intercept(RequestFacade request) {
+                        request.addHeader("Authorization", "Bearer " + accessToken);
+                    }
+                })
+                .build();
+
+        spotify = restAdapter.create(SpotifyService.class);
+        String[] test=getTrackInfo("27a1mYSG5tYg7dmEjWBcmL");
+
+        QLA.addData(test[0]);
+        System.out.println(test[0] + "ROASTER TOASTER");
+        QLA.notifyDataSetChanged();
+        QLA.addData("Hello");
+        QLA.notifyDataSetChanged();
+        /*spotify.getAlbum("2dIGnmEIy1WZIcZCFSj6i8", new Callback<Album>() {
+
+            @Override
+            public void success(Album album, retrofit.client.Response response) {
+                Log.d("Album success", album.name);
+            }
+
+            @Override
+            public void failure(RetrofitError error) {
+                Log.d("Album failure", error.toString());
+            }
+        });*/
+
+
+        // Instantiate the RequestQueue.
+        //RequestQueue queue = Volley.newRequestQueue(this);
+
+
+        /*JsonObjectRequest jsonObjectRequest = new JsonObjectRequest
+                (Request.Method.GET, url, null, new Response.Listener<JSONObject>() {
+
+                    @Override
+                    public void onResponse(JSONObject response) {
+                        songQueue.setText("Response: " + response.toString());
                     }
                 }, new Response.ErrorListener() {
-            @Override
-            public void onErrorResponse(VolleyError error) {
-                songQueue.setText("That didn't work!");
-            }
-        });
 
-        // Add the request to the RequestQueue.
-        queue.add(stringRequest);*/
+                    @Override
+                    public void onErrorResponse(VolleyError error) {
+                        // TODO: Handle error
+
+                    }
+                });*/
+
+// Access the RequestQueue through your singleton class.
+        //queue.add(jsonObjectRequest);
+//        final TextView songQueue = (TextView) findViewById(R.id.smsMessage);
+//        // Request a string response from the provided URL.
+//        StringRequest stringRequest = new StringRequest(Request.Method.GET, url,
+//                new Response.Listener<String>() {
+//                    @Override
+//                    public void onResponse(String response) {
+//                        // Display the first 500 characters of the response string.
+//                        songQueue.setText("Response is: "+ response.substring(0,500));
+//                    }
+//                }, new Response.ErrorListener() {
+//            @Override
+//            public void onErrorResponse(VolleyError error) {
+//                songQueue.setText("That didn't work!");
+//            }
+//        });
+//
+//        // Add the request to the RequestQueue.
+//        //queue.add(stringRequest);
+
         // Then we will write some more code here
         ActivityCompat.requestPermissions(this,
                 new String[]{Manifest.permission.RECEIVE_SMS},
@@ -240,7 +357,52 @@ public class MainActivity extends AppCompatActivity {
         ActivityCompat.requestPermissions(this,
                 new String[]{Manifest.permission.SEND_SMS},
                 24);
+        ActivityCompat.requestPermissions(this, new String[]{Manifest.permission.READ_CONTACTS}, 100);
+
+
     }
+
+    /*private void internetRequest() throws Exception {
+        //String url ="https://api.spotify.com/v1/tracks/3ee8Jmje8o58CHK66QrVC2";
+        String url = "http://api.ipinfodb.com/v3/ip-city/?key=d64fcfdfacc213c7ddf4ef911dfe97b55e4696be3532bf8302876c09ebd06b&ip=74.125.45.100&format=json";
+        final TextView songQueue = (TextView) findViewById(R.id.smsMessage);
+
+        //String url = "http://api.ipinfodb.com/v3/ip-city/?key=d64fcfdfacc213c7ddf4ef911dfe97b55e4696be3532bf8302876c09ebd06b&ip=74.125.45.100&format=json";
+        URL obj = new URL(url);
+        HttpURLConnection con = (HttpURLConnection) obj.openConnection();
+        // optional default is GET
+        con.setRequestMethod("GET");
+        //add request header
+        con.setRequestProperty("User-Agent", "Mozilla/5.0");
+        int responseCode = con.getResponseCode();
+        System.out.println("\nSending 'GET' request to URL : " + url);
+        System.out.println("Response Code : " + responseCode);
+        BufferedReader in = new BufferedReader(
+                new InputStreamReader(con.getInputStream()));
+        String inputLine;
+        StringBuffer response = new StringBuffer();
+        while ((inputLine = in.readLine()) != null) {
+            response.append(inputLine);
+        }
+        in.close();
+        //print in String
+        System.out.println(response.toString());
+        //Read JSON response and print
+        JSONObject myResponse = new JSONObject(response.toString());
+        System.out.println("result after Reading JSON Response");
+        System.out.println("statusCode- "+myResponse.getString("statusCode"));
+        System.out.println("statusMessage- "+myResponse.getString("statusMessage"));
+        System.out.println("ipAddress- "+myResponse.getString("ipAddress"));
+        System.out.println("countryCode- "+myResponse.getString("countryCode"));
+        System.out.println("countryName- "+myResponse.getString("countryName"));
+        System.out.println("regionName- "+myResponse.getString("regionName"));
+        System.out.println("cityName- "+myResponse.getString("cityName"));
+        System.out.println("zipCode- "+myResponse.getString("zipCode"));
+        System.out.println("latitude- "+myResponse.getString("latitude"));
+        System.out.println("longitude- "+myResponse.getString("longitude"));
+        System.out.println("timeZone- "+myResponse.getString("timeZone"));
+    }*/
+
 
     @Override
     public void onRequestPermissionsResult(int requestCode, @NonNull String[] permissions, @NonNull int[] grantResults) {
@@ -249,6 +411,13 @@ public class MainActivity extends AppCompatActivity {
             // YES!!
             System.out.println("DUCKYES");
             Log.i("TAG", "MY_PERMISSIONS_REQUEST_SMS_RECEIVE --> YES");
+
+        }
+        else if (requestCode == 100) {
+            // YES!!
+            System.out.println("roaster");
+            Log.i("TAG", "CONTACTS --> YES");
+            //updateQueueUI("+18056035340", null);
 
         }
     }
@@ -271,6 +440,7 @@ public class MainActivity extends AppCompatActivity {
                 // Response was successful and contains auth token
                 case TOKEN:
                     // Handle successful response
+                    spotifyToken = response.getAccessToken();
                     Toast.makeText(this, "Remote Connected", Toast.LENGTH_SHORT).show();
                     ConnectionParams connectionParams =
                             new ConnectionParams.Builder(CLIENT_ID)
@@ -424,6 +594,7 @@ public class MainActivity extends AppCompatActivity {
             if(queueLimit.get(sender) < queueLimitPeriod){
                 queueLimit.put(sender, queueLimit.get(sender)+1);
                 mSpotifyAppRemote.getPlayerApi().queue("spotify:track:"+songId);
+                //updateQueueUI(sender, songId);
                 Toast.makeText(this, "New Song Added to Queue", Toast.LENGTH_LONG).show();
             }
             else{
@@ -440,11 +611,11 @@ public class MainActivity extends AppCompatActivity {
     }
 
     public void skipTrack(View view){
-        mSpotifyAppRemote.getPlayerApi().skipPrevious();
+        mSpotifyAppRemote.getPlayerApi().skipNext();
     }
 
     public void backTrack(View view){
-        mSpotifyAppRemote.getPlayerApi().skipNext();
+        mSpotifyAppRemote.getPlayerApi().skipPrevious();
 
     }
 
@@ -452,22 +623,44 @@ public class MainActivity extends AppCompatActivity {
 
         mSpotifyAppRemote.getPlayerApi().getPlayerState().setResultCallback(playerState -> {
             if(playerState.isPaused){
+
                 mSpotifyAppRemote.getPlayerApi().resume();
+                findViewById(R.id.play).setBackgroundResource(android.R.drawable.ic_media_pause);
+
+
             }
             else{
                 mSpotifyAppRemote.getPlayerApi().pause();
+                findViewById(R.id.play).setBackgroundResource(android.R.drawable.ic_media_play);
             }
         });
     }
 
     public void saveTrack(View view){
+
         mSpotifyAppRemote.getPlayerApi().getPlayerState().setResultCallback(playerState -> {
-          mSpotifyAppRemote.getUserApi().addToLibrary(playerState.track.uri);
+
+            mSpotifyAppRemote.getUserApi().getLibraryState(playerState.track.uri).setResultCallback(libraryState -> {
+                if(libraryState.isAdded){
+                    Toast.makeText(this, "Song is already in library!", Toast.LENGTH_SHORT);
+                    //findViewById(R.id.save).setBackgroundResource(android.R.drawable.btn_star_big_on);
+                    //findViewById(R.id.save).setBackgroundColor(getResources().getColor(R.color.colorPrimary));
+                }
+                else{
+                    mSpotifyAppRemote.getUserApi().addToLibrary(playerState.track.uri);
+                    findViewById(R.id.save).setBackgroundResource(android.R.drawable.btn_star_big_on);
+                    //findViewById(R.id.save).setBackgroundColor(getResources().getColor(R.color.colorPrimary));
+                }
+
+          //findViewById(R.id.save).setBackgroundColor(getResources().getColor(R.color.colorPrimary));
         });
+    });
+
     }
 
     public class QueueListAdapter extends RecyclerView.Adapter<QueueListAdapter.ViewHolder>{
-        String[] fakeData = new String[]{"Sicko Mode", "God's Plan", "Nonstop", "HYFR", "Moonlight", "SAD!"};
+
+        List<String> fakeData = new ArrayList<String>();//new String[]{"Sicko Mode", "God's Plan", "Nonstop", "HYFR", "Moonlight", "SAD!"};
         @Override
         public ViewHolder onCreateViewHolder(ViewGroup parent, int i){
             //Create a new view
@@ -477,14 +670,16 @@ public class MainActivity extends AppCompatActivity {
 
         @Override
         public void onBindViewHolder(ViewHolder vH, int i){
-            vH.titleView.setText(fakeData[i]);
+            vH.titleView.setText(fakeData.get(i));
         }
 
         @Override
         public int getItemCount(){
-            return fakeData.length;
+            return fakeData.size();
         }
-
+        public void addData(String temp){
+            fakeData.add(temp);
+        }
         class ViewHolder extends RecyclerView.ViewHolder{
             CardView cardView;
             TextView titleView;
@@ -495,6 +690,142 @@ public class MainActivity extends AppCompatActivity {
                 titleView = (TextView) card.findViewById(R.id.text1);
             }
         }
+    }
+
+    public String retrieveNameOfSender(String sender){
+        System.out.println(sender);
+        Uri uri = Uri.withAppendedPath(ContactsContract.PhoneLookup.CONTENT_FILTER_URI, Uri.encode(sender));
+        ContentResolver cR = getContentResolver();
+        Cursor contactLookup = cR.query(uri, new String[]{ContactsContract.PhoneLookup.DISPLAY_NAME}, null, null, null);
+        String name = sender;
+        if (contactLookup != null && contactLookup.getCount() > 0) {
+            contactLookup.moveToNext();
+            name = contactLookup.getString(contactLookup.getColumnIndex(ContactsContract.Data.DISPLAY_NAME));
+            System.out.println(name);
+        }
+        //ImageView temp = (ImageView) findViewById(R.id.currentSongImage);
+        //temp.setImageBitmap(retrieveContactPhoto(this, "+18056035340"));
+        return name;
+    }
+    public static Bitmap retrieveContactPhoto(Context context, String number) {
+        ContentResolver contentResolver = context.getContentResolver();
+        String contactId = null;
+        Uri uri = Uri.withAppendedPath(ContactsContract.PhoneLookup.CONTENT_FILTER_URI, Uri.encode(number));
+        String[] projection = new String[]{ContactsContract.PhoneLookup.DISPLAY_NAME, ContactsContract.PhoneLookup._ID};
+        Cursor cursor =
+                contentResolver.query(
+                        uri,
+                        projection,
+                        null,
+                        null,
+                        null);
+        if (cursor != null) {
+            while (cursor.moveToNext()) {
+                contactId = cursor.getString(cursor.getColumnIndexOrThrow(ContactsContract.PhoneLookup._ID));
+            }
+            cursor.close();
+        }
+
+        Bitmap photo= null; //BitmapFactory.decodeResource(context.getResources(),
+               // R.drawable.default_image);
+
+        try {
+            InputStream inputStream = ContactsContract.Contacts.openContactPhotoInputStream(context.getContentResolver(),
+                    ContentUris.withAppendedId(ContactsContract.Contacts.CONTENT_URI, new Long(contactId)));
+
+            if (inputStream != null) {
+                System.out.println("input steream is not null");
+                photo = BitmapFactory.decodeStream(inputStream);
+            }
+
+            assert inputStream != null;
+            inputStream.close();
+
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+        return photo;
+    }
+
+    class songQ{
+        String nameRequesting;
+        String nameOfSong;
+        String nameArtist;
+        Bitmap photoRequesting;
+        Integer numberRequested;
+        public songQ(String sender, String songID){
+            String name = retrieveNameOfSender(sender);
+            if(name.equals(sender)){
+                this.nameRequesting = sender;
+            }
+            else{
+                this.nameRequesting = name.split(" ")[0];
+            }
+
+
+        }
+    }
+
+    /*public void requestAuthorization() {
+        RequestQueue queue = Volley.newRequestQueue(this);
+        String url = "https://open.spotify.com/track/27a1mYSG5tYg7dmEjWBcmL";
+        String responseDictionary = null;
+        StringRequest getRequest = new StringRequest(Request.Method.GET, url,
+                new Response.Listener<String>() {
+                    @Override
+                    public void onResponse(String response) {
+                        // response
+                        System.out.println("spotify authorized is a bitch");
+                        //response
+                        System.out.println(response);
+                        //add code to create song objects
+                        //Log.d("Response", response);
+
+                    }
+                },
+                new Response.ErrorListener() {
+                    @Override
+                    public void onErrorResponse(VolleyError error) {
+                        // TODO Auto-generated method stub
+                        Log.d("ERROR", "error => " + error.toString());
+                    }
+                }
+        ); *//*{
+            @Override
+            public Map<String, String> getHeaders() throws AuthFailureError {
+                Map<String, String> params = new HashMap<String, String>();
+                params.put("client_id", CLIENT_ID);
+                params.put("response_type", "code");
+                params.put("redirect_uri", REDIRECT_URI);
+                return params;
+            }
+        };*//*
+        queue.add(getRequest);
+    }*/
+
+    public String[] getTrackInfo(String songId){
+        String[] temp = new String[3];
+        spotify.getTrack(songId, new Callback<kaaes.spotify.webapi.android.models.Track>() {
+            @Override
+            public void success(kaaes.spotify.webapi.android.models.Track track, retrofit.client.Response response) {
+                Log.d("Track success", track.name);
+                inter[0] = track.name;
+                inter[1] = track.artists.get(0).name;
+                inter[2] = track.id;
+                QLA.addData(track.name);
+                QLA.notifyDataSetChanged();
+                QLA.addData(inter[1]);
+                QLA.notifyDataSetChanged();
+            }
+
+            @Override
+            public void failure(RetrofitError error) {
+                Log.d("Track failure", error.toString());
+            }
+        });
+        System.out.println(inter[1] + "sdafkjhasdhfjdkjashfldkjashf");
+        return inter;
+
     }
 
 }

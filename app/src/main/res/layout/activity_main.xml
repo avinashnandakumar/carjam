@@ -4,7 +4,7 @@
     xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-
+    android:background="@color/colorPrimaryDarker"
     tools:context=".MainActivity">
 
     <!--<LinearLayout
@@ -144,56 +144,65 @@
                     android:layout_width="match_parent"
                     android:layout_height="match_parent"
                     android:layout_weight="1"
+                    android:padding="5dp"
                     android:orientation="vertical">
 
-                    <Button
-                        android:id="@+id/button2"
+                    <ImageButton
+                        android:id="@+id/save"
                         android:layout_width="match_parent"
                         android:layout_height="match_parent"
-                        android:onClick="saveTrack"
-                        android:text="Save" />
+                        android:backgroundTint="@color/colorPrimary"
+                        android:onClick="saveTrack" />
                 </LinearLayout>
 
                 <LinearLayout
                     android:layout_width="match_parent"
                     android:layout_height="match_parent"
                     android:layout_weight="1"
-                    android:orientation="vertical">
+                    android:padding="5dp"
+                    android:orientation="vertical"
+                    >
 
-                    <Button
-                        android:id="@+id/button4"
+                    <ImageButton
+                        android:id="@+id/imageButton"
                         android:layout_width="match_parent"
                         android:layout_height="match_parent"
-                        android:onClick="skipTrack"
-                        android:text="left" />
+                        android:backgroundTint="@color/colorPrimary"
+                        android:onClick="backTrack"
+                        app:srcCompat="@android:drawable/ic_media_previous" />
                 </LinearLayout>
 
                 <LinearLayout
                     android:layout_width="match_parent"
                     android:layout_height="match_parent"
                     android:layout_weight="1"
+                    android:padding="5dp"
                     android:orientation="vertical">
 
-                    <Button
-                        android:id="@+id/button7"
+                    <ImageButton
+                        android:id="@+id/play"
                         android:layout_width="match_parent"
                         android:layout_height="match_parent"
-                        android:onClick="play"
-                        android:text="Play" />
+                        android:backgroundTint="@color/colorPrimary"
+                        android:cropToPadding="false"
+                        android:onClick="play" />
                 </LinearLayout>
 
                 <LinearLayout
                     android:layout_width="match_parent"
                     android:layout_height="match_parent"
                     android:layout_weight="1"
-                    android:orientation="vertical">
+                    android:orientation="vertical"
+                    android:padding="5dp">
 
-                    <Button
+                    <ImageButton
                         android:id="@+id/skip"
                         android:layout_width="match_parent"
                         android:layout_height="match_parent"
-                        android:onClick="backTrack"
-                        android:text="right" />
+                        android:backgroundTint="@color/colorPrimary"
+                        android:onClick="skipTrack"
+                        android:padding="5dp"
+                        app:srcCompat="@android:drawable/ic_media_next" />
                 </LinearLayout>
             </LinearLayout>
         </LinearLayout>
