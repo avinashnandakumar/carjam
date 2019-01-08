@@ -151,8 +151,9 @@
                         android:id="@+id/save"
                         android:layout_width="match_parent"
                         android:layout_height="match_parent"
-                        android:backgroundTint="@color/colorPrimary"
-                        android:onClick="saveTrack" />
+                        android:onClick="saveTrack"
+                        android:background="@drawable/customselector"
+                        />
                 </LinearLayout>
 
                 <LinearLayout
@@ -167,7 +168,7 @@
                         android:id="@+id/imageButton"
                         android:layout_width="match_parent"
                         android:layout_height="match_parent"
-                        android:backgroundTint="@color/colorPrimary"
+                        android:background="@color/colorPrimary"
                         android:onClick="backTrack"
                         app:srcCompat="@android:drawable/ic_media_previous" />
                 </LinearLayout>
@@ -176,16 +177,17 @@
                     android:layout_width="match_parent"
                     android:layout_height="match_parent"
                     android:layout_weight="1"
-                    android:padding="5dp"
-                    android:orientation="vertical">
+                    android:orientation="vertical"
+                    android:padding="5dp">
 
                     <ImageButton
                         android:id="@+id/play"
                         android:layout_width="match_parent"
                         android:layout_height="match_parent"
-                        android:backgroundTint="@color/colorPrimary"
                         android:cropToPadding="false"
-                        android:onClick="play" />
+                        android:onClick="play"
+                        android:background="@drawable/customselector"
+                        />
                 </LinearLayout>
 
                 <LinearLayout
@@ -199,7 +201,7 @@
                         android:id="@+id/skip"
                         android:layout_width="match_parent"
                         android:layout_height="match_parent"
-                        android:backgroundTint="@color/colorPrimary"
+                        android:background="@color/colorPrimary"
                         android:onClick="skipTrack"
                         android:padding="5dp"
                         app:srcCompat="@android:drawable/ic_media_next" />
@@ -207,14 +209,6 @@
             </LinearLayout>
         </LinearLayout>
     </LinearLayout>
-
-    <TextView
-        android:id="@+id/smsMessage"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:text="TextView"
-        tools:layout_editor_absoluteX="7dp"
-        tools:layout_editor_absoluteY="8dp" />
 
     <LinearLayout
         android:layout_width="0dp"

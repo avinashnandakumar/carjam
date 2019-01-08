@@ -2,7 +2,11 @@
 <selector xmlns:android="http://schemas.android.com/apk/res/android">
     <shape
         xmlns:android="http://schemas.android.com/apk/res/android"
-        android:shape="rectangle"   >
+        android:shape="rectangle"
+        >
+        <fill
+            android:color="@color/cardColor">
+        </fill>
 
         <solid
             android:color="@color/colorPrimaryDark" >

@@ -8,12 +8,15 @@ import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.net.HttpURLConnection;
 import java.net.URL;
+import java.nio.ByteBuffer;
 import java.sql.SQLOutput;
+import java.text.DateFormat;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Dictionary;
 import java.util.HashMap;
 import java.util.Hashtable;
+import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.Queue;
@@ -31,7 +34,10 @@ import android.content.res.ColorStateList;
 import android.database.Cursor;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
+import android.graphics.Color;
+import android.graphics.Shader;
 import android.net.Uri;
+import android.os.AsyncTask;
 import android.provider.ContactsContract;
 import android.provider.Telephony;
 import android.support.annotation.IdRes;
@@ -52,6 +58,7 @@ import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.BaseAdapter;
+import android.widget.ImageButton;
 import android.widget.ImageView;
 import android.widget.TextView;
 import android.widget.Toast;
@@ -64,6 +71,7 @@ import com.android.volley.toolbox.HttpResponse;
 import com.android.volley.toolbox.JsonObjectRequest;
 import com.android.volley.toolbox.StringRequest;
 import com.android.volley.toolbox.Volley;
+import com.makeramen.roundedimageview.RoundedImageView;
 import com.spotify.android.appremote.api.ConnectionParams;
 import com.spotify.android.appremote.api.Connector;
 import com.spotify.android.appremote.api.SpotifyAppRemote;
@@ -79,6 +87,7 @@ import com.spotify.sdk.android.authentication.AuthenticationRequest;
 import com.spotify.sdk.android.authentication.AuthenticationResponse;
 import com.android.volley.RequestQueue;
 import com.android.volley.Request;
+import com.squareup.picasso.Picasso;
 
 import org.json.JSONObject;
 import org.w3c.dom.Text;
@@ -94,6 +103,8 @@ import retrofit.RequestInterceptor;
 import retrofit.RestAdapter;
 import retrofit.RetrofitError;
 
+import static java.security.AccessController.getContext;
+
 
 public class MainActivity extends AppCompatActivity {
     private static final int REQUEST_CODE = 1337;
@@ -104,8 +115,10 @@ public class MainActivity extends AppCompatActivity {
     private SpotifyAppRemote mSpotifyAppRemote;
     boolean mIsReceiverRegistered = false;
     private SmsReciever mReciever;
-    private Integer queueLimitPeriod = 2;
+    private Integer queueLimitPeriod = 10;
+    private Integer queueRefreshPeriod = 1; //minutes
     private Map<String, Integer> queueLimit;
+    private Map<String, Long> requesterTime;
     RecyclerView recyclerView;
     QueueListAdapter QLA;
     private SpotifyService spotify;
@@ -119,6 +132,7 @@ public class MainActivity extends AppCompatActivity {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
         queueLimit = new HashMap<String,Integer>();
+        requesterTime = new HashMap<>();
         //requestAuthorization();
         //requestWithSomeHttpHeaders("28zGTndSQj4JT9nCPHRoTV");
         QLA = new QueueListAdapter();
@@ -139,7 +153,6 @@ public class MainActivity extends AppCompatActivity {
     @Override
     protected void onStart() {
         super.onStart();
-
         // We will start writing our code here.
     }
 
@@ -147,10 +160,10 @@ public class MainActivity extends AppCompatActivity {
     protected void onResume(){
         super.onResume();
         //Toast.makeText(this, "Resume", Toast.LENGTH_SHORT).show();
-        /*if (mReciever == null)
+        if (mReciever == null)
             mReciever = new SmsReciever();
         registerReceiver(mReciever, new IntentFilter("android.provider.Telephony.SMS_RECEIVED"));
-        mIsReceiverRegistered = true;*/
+        mIsReceiverRegistered = true;
         //connected();
     }
 
@@ -244,24 +257,31 @@ public class MainActivity extends AppCompatActivity {
                 .setEventCallback(playerState -> {
                     final Track track = playerState.track;
                     if (track != null) {
+                        if (QLA.fakeData.size()>0){
+                            if((track.name).equals(QLA.fakeData.get(0).nameOfSong)) {
+                                QLA.fakeData.remove(0);
+                                QLA.notifyDataSetChanged();
+                            }
+                        }
                         songName.setText(track.name);
                         songArtist.setText(track.artist.name);
+                        System.out.println(track.imageUri.toString() + "SPOTIFY IMAGE URI");
                         mSpotifyAppRemote.getImagesApi().getImage(track.imageUri).setResultCallback(image -> {songImage.setImageBitmap(image);});
                         if(playerState.isPaused){
-                            findViewById(R.id.play).setBackgroundResource(android.R.drawable.ic_media_play);
+                            ((ImageButton)findViewById(R.id.play)).setImageResource(android.R.drawable.ic_media_play);
                         }
                         else{
 
-                            findViewById(R.id.play).setBackgroundResource(android.R.drawable.ic_media_pause);
+                            ((ImageButton)findViewById(R.id.play)).setImageResource(android.R.drawable.ic_media_pause);
 
                         }
                         mSpotifyAppRemote.getUserApi().getLibraryState(track.uri).setResultCallback(libraryState -> {
                             if(libraryState.isAdded){
-                                findViewById(R.id.save).setBackgroundResource(android.R.drawable.btn_star_big_on);
+                                ((ImageButton)findViewById(R.id.save)).setImageResource(android.R.drawable.btn_star_big_on);
                                 //findViewById(R.id.save).setBackgroundColor(getResources().getColor(R.color.colorPrimary));
                             }
                             else{
-                                findViewById(R.id.save).setBackgroundResource(android.R.drawable.btn_star_big_off);
+                                ((ImageButton)findViewById(R.id.save)).setImageResource(android.R.drawable.btn_star);
                                 //findViewById(R.id.save).setBackgroundColor(getResources().getColor(R.color.colorPrimary));
                             }
                                 });
@@ -274,9 +294,7 @@ public class MainActivity extends AppCompatActivity {
         SpotifyService roasterSpotify = api.getService();*/
         //
 
-
         final String accessToken = spotifyToken;
-
         RestAdapter restAdapter = new RestAdapter.Builder()
                 .setEndpoint(SpotifyApi.SPOTIFY_WEB_API_ENDPOINT)
                 .setRequestInterceptor(new RequestInterceptor() {
@@ -288,13 +306,12 @@ public class MainActivity extends AppCompatActivity {
                 .build();
 
         spotify = restAdapter.create(SpotifyService.class);
-        String[] test=getTrackInfo("27a1mYSG5tYg7dmEjWBcmL");
-
-        QLA.addData(test[0]);
-        System.out.println(test[0] + "ROASTER TOASTER");
-        QLA.notifyDataSetChanged();
-        QLA.addData("Hello");
-        QLA.notifyDataSetChanged();
+        //String[] test=getTrackInfo("27a1mYSG5tYg7dmEjWBcmL");
+        //QLA.addData(test[0]);
+        //System.out.println(test[0] + "ROASTER TOASTER");
+        //QLA.notifyDataSetChanged();
+        //QLA.addData("Hello");
+        //QLA.notifyDataSetChanged();
         /*spotify.getAlbum("2dIGnmEIy1WZIcZCFSj6i8", new Callback<Album>() {
 
             @Override
@@ -491,12 +508,12 @@ public class MainActivity extends AppCompatActivity {
 
     }
 
-    public void updateMessage(String messageBody) {
+    /*public void updateMessage(String messageBody) {
         TextView smsMessage = (TextView) findViewById(R.id.smsMessage);
         smsMessage.setText(messageBody);
         smsMessage.setMovementMethod(new ScrollingMovementMethod());
         System.out.println("It worked");
-    }
+    }*/
 
     private class SmsReciever extends BroadcastReceiver {
 
@@ -530,16 +547,21 @@ public class MainActivity extends AppCompatActivity {
                 //String temp = messageBody.substring(6, 15);
                 //if (temp.equals(" a song f")) {
                 System.out.println("In the loop");
-                updateMessage(fullMessage);
+                //updateMessage(fullMessage);
                 Pattern p = Pattern.compile("https.*\\?");
                 Matcher matcher = p.matcher(fullMessage);
-                if (matcher.find()) {
+                ArrayList<String> toProcess = new ArrayList<>();
+                while (matcher.find()) {
                     System.out.println(matcher.group());
                     String songToQueue = matcher.group();
                     String songId = songToQueue.substring(31,songToQueue.length()-1);
                     System.out.println(songId);
-                    addToQueue(senderNumber, songId);
-                    deleteText(context, senderNumber, fullMessage);
+                    toProcess.add(songId);
+                    //addToQueue(senderNumber, songId);
+                    //deleteText(context, senderNumber, fullMessage);
+                }
+                for(int i =0 ;i<toProcess.size(); i++){
+                    addToQueue(senderNumber, toProcess.get(i));
                 }
 
             } else {
@@ -591,10 +613,16 @@ public class MainActivity extends AppCompatActivity {
     private void addToQueue(String sender, String songId) {
         System.out.println(sender);
         if(queueLimit.containsKey(sender)){
-            if(queueLimit.get(sender) < queueLimitPeriod){
-                queueLimit.put(sender, queueLimit.get(sender)+1);
+            if(((System.currentTimeMillis() - requesterTime.get(sender))/60000)> queueRefreshPeriod){
+                requesterTime.remove(sender);
+                requesterTime.put(sender, System.currentTimeMillis());
+                queueLimit.put(sender, queueLimitPeriod);
+            }
+            if(queueLimit.get(sender) > 0){
+                queueLimit.put(sender, queueLimit.get(sender)-1);
                 mSpotifyAppRemote.getPlayerApi().queue("spotify:track:"+songId);
                 //updateQueueUI(sender, songId);
+                getTrackInfo(songId, sender, queueLimitPeriod- queueLimit.get(sender));
                 Toast.makeText(this, "New Song Added to Queue", Toast.LENGTH_LONG).show();
             }
             else{
@@ -603,7 +631,9 @@ public class MainActivity extends AppCompatActivity {
             }
         }
         else{
-            queueLimit.put(sender, 1);
+            queueLimit.put(sender, queueLimitPeriod-1);
+            requesterTime.put(sender, System.currentTimeMillis());
+            getTrackInfo(songId, sender, 1);
             mSpotifyAppRemote.getPlayerApi().queue("spotify:track:"+songId);
             Toast.makeText(this, "New Song Added to Queue", Toast.LENGTH_LONG).show();
         }
@@ -612,6 +642,11 @@ public class MainActivity extends AppCompatActivity {
 
     public void skipTrack(View view){
         mSpotifyAppRemote.getPlayerApi().skipNext();
+        if(QLA.fakeData.size()>0){
+            QLA.fakeData.remove(0);
+            QLA.notifyDataSetChanged();
+        }
+
     }
 
     public void backTrack(View view){
@@ -625,13 +660,13 @@ public class MainActivity extends AppCompatActivity {
             if(playerState.isPaused){
 
                 mSpotifyAppRemote.getPlayerApi().resume();
-                findViewById(R.id.play).setBackgroundResource(android.R.drawable.ic_media_pause);
+                ((ImageButton) findViewById(R.id.play)).setImageResource(android.R.drawable.ic_media_pause);
 
 
             }
             else{
                 mSpotifyAppRemote.getPlayerApi().pause();
-                findViewById(R.id.play).setBackgroundResource(android.R.drawable.ic_media_play);
+                ((ImageButton)findViewById(R.id.play)).setImageResource(android.R.drawable.ic_media_play);
             }
         });
     }
@@ -642,13 +677,14 @@ public class MainActivity extends AppCompatActivity {
 
             mSpotifyAppRemote.getUserApi().getLibraryState(playerState.track.uri).setResultCallback(libraryState -> {
                 if(libraryState.isAdded){
-                    Toast.makeText(this, "Song is already in library!", Toast.LENGTH_SHORT);
+                    Toast.makeText(getApplicationContext(), "Song is already in library!", Toast.LENGTH_SHORT);
+                    ((ImageButton)findViewById(R.id.save)).setImageResource(android.R.drawable.btn_star_big_on);
                     //findViewById(R.id.save).setBackgroundResource(android.R.drawable.btn_star_big_on);
                     //findViewById(R.id.save).setBackgroundColor(getResources().getColor(R.color.colorPrimary));
                 }
                 else{
                     mSpotifyAppRemote.getUserApi().addToLibrary(playerState.track.uri);
-                    findViewById(R.id.save).setBackgroundResource(android.R.drawable.btn_star_big_on);
+                    ((ImageButton)findViewById(R.id.save)).setImageResource(android.R.drawable.btn_star_big_on);
                     //findViewById(R.id.save).setBackgroundColor(getResources().getColor(R.color.colorPrimary));
                 }
 
@@ -660,7 +696,7 @@ public class MainActivity extends AppCompatActivity {
 
     public class QueueListAdapter extends RecyclerView.Adapter<QueueListAdapter.ViewHolder>{
 
-        List<String> fakeData = new ArrayList<String>();//new String[]{"Sicko Mode", "God's Plan", "Nonstop", "HYFR", "Moonlight", "SAD!"};
+        List<songQ> fakeData = new LinkedList<>();//new String[]{"Sicko Mode", "God's Plan", "Nonstop", "HYFR", "Moonlight", "SAD!"};
         @Override
         public ViewHolder onCreateViewHolder(ViewGroup parent, int i){
             //Create a new view
@@ -670,24 +706,48 @@ public class MainActivity extends AppCompatActivity {
 
         @Override
         public void onBindViewHolder(ViewHolder vH, int i){
-            vH.titleView.setText(fakeData.get(i));
+            vH.songTitle.setText(fakeData.get(i).nameOfSong + " by " + fakeData.get(i).nameArtist);
+            vH.requesterName.setText(fakeData.get(i).senderName);
+            //vH.contactPhoto.setImageBitmap(fakeData.get(i).senderPhoto);
+            RoundedImageView riv = vH.contactPhoto;
+            riv.setScaleType(ImageView.ScaleType.CENTER_CROP);
+            riv.setCornerRadius((float) 10);
+            riv.setBorderWidth((float) 2);
+            riv.setBorderColor(Color.DKGRAY);
+            riv.mutateBackground(true);
+            riv.setImageBitmap(fakeData.get(i).senderPhoto);
+            //riv.setBackground(backgroundDrawable);
+            riv.setOval(true);
+            riv.setTileModeX(Shader.TileMode.REPEAT);
+            riv.setTileModeY(Shader.TileMode.REPEAT);
+            //System.out.println(fakeData.get(i).photoRequesting.url);
+            vH.numberRequested.setText(fakeData.get(i).requesterNumber.toString() + "/" + queueLimitPeriod.toString());
+            new DownloadImageTask(vH.albumPhoto).execute(fakeData.get(i).photoRequesting.url);
         }
 
         @Override
         public int getItemCount(){
             return fakeData.size();
         }
-        public void addData(String temp){
+        public void addData(songQ temp){
             fakeData.add(temp);
         }
         class ViewHolder extends RecyclerView.ViewHolder{
             CardView cardView;
-            TextView titleView;
+            TextView songTitle;
+            TextView requesterName;
+            RoundedImageView contactPhoto;
+            ImageView albumPhoto;
+            TextView numberRequested;
 
             public ViewHolder(CardView card){
                 super(card);
                 cardView = card;
-                titleView = (TextView) card.findViewById(R.id.text1);
+                songTitle = (TextView) card.findViewById(R.id.text1);
+                requesterName = (TextView) card.findViewById(R.id.text2);
+                contactPhoto = (RoundedImageView) card.findViewById(R.id.imageView4);
+                albumPhoto = (ImageView)   card.findViewById(R.id.albumCover);
+                numberRequested = (TextView) card.findViewById(R.id.numberRequested);
             }
         }
     }
@@ -748,20 +808,24 @@ public class MainActivity extends AppCompatActivity {
     }
 
     class songQ{
-        String nameRequesting;
+        String senderName;
+        String senderNumber;
+        Bitmap senderPhoto;
         String nameOfSong;
         String nameArtist;
-        Bitmap photoRequesting;
-        Integer numberRequested;
-        public songQ(String sender, String songID){
-            String name = retrieveNameOfSender(sender);
-            if(name.equals(sender)){
-                this.nameRequesting = sender;
-            }
-            else{
-                this.nameRequesting = name.split(" ")[0];
-            }
+        kaaes.spotify.webapi.android.models.Image photoRequesting;
+        String id;
+        Integer requesterNumber;
 
+        public songQ(String name, String artist, String id, String senderName, String senderNumber, kaaes.spotify.webapi.android.models.Image temp, Integer trackNumber){
+            this.nameOfSong = name;
+            this.nameArtist = artist;
+            this.id = id;
+            this.senderName = senderName;
+            this.senderNumber = senderNumber;
+            this.senderPhoto = retrieveContactPhoto(getApplicationContext(), senderNumber);
+            this.photoRequesting = temp;
+            this.requesterNumber = trackNumber;
 
         }
     }
@@ -803,18 +867,22 @@ public class MainActivity extends AppCompatActivity {
         queue.add(getRequest);
     }*/
 
-    public String[] getTrackInfo(String songId){
-        String[] temp = new String[3];
+    public void getTrackInfo(String songId, String sender, Integer trackNumber){
+        Integer[] info = new Integer[3];
+        info[0] = trackNumber;
         spotify.getTrack(songId, new Callback<kaaes.spotify.webapi.android.models.Track>() {
             @Override
             public void success(kaaes.spotify.webapi.android.models.Track track, retrofit.client.Response response) {
                 Log.d("Track success", track.name);
-                inter[0] = track.name;
+                /*inter[0] = track.name;
                 inter[1] = track.artists.get(0).name;
-                inter[2] = track.id;
-                QLA.addData(track.name);
-                QLA.notifyDataSetChanged();
-                QLA.addData(inter[1]);
+                inter[2] = track.id;*/
+                String nameSender = retrieveNameOfSender(sender);
+               /* System.out.println(track.id + "TRACK ID KAES");
+                System.out.println(track.uri + "TRACK URIS ");
+                System.out.println(track.external_urls.toString() + "TRACK EXTERNAL URLS KAES");*/
+                songQ temp = new songQ(track.name, track.artists.get(0).name, track.id, nameSender, sender, track.album.images.get(0), info[0]);
+                QLA.addData(temp);
                 QLA.notifyDataSetChanged();
             }
 
@@ -823,9 +891,33 @@ public class MainActivity extends AppCompatActivity {
                 Log.d("Track failure", error.toString());
             }
         });
-        System.out.println(inter[1] + "sdafkjhasdhfjdkjashfldkjashf");
-        return inter;
 
+
+    }
+
+    private class DownloadImageTask extends AsyncTask<String, Void, Bitmap> {
+        ImageView bmImage;
+
+        public DownloadImageTask(ImageView bmImage) {
+            this.bmImage = bmImage;
+        }
+
+        protected Bitmap doInBackground(String... urls) {
+            String urldisplay = urls[0];
+            Bitmap mIcon11 = null;
+            try {
+                InputStream in = new java.net.URL(urldisplay).openStream();
+                mIcon11 = BitmapFactory.decodeStream(in);
+            } catch (Exception e) {
+                Log.e("Error", e.getMessage());
+                e.printStackTrace();
+            }
+            return mIcon11;
+        }
+
+        protected void onPostExecute(Bitmap result) {
+            bmImage.setImageBitmap(result);
+        }
     }
 
 }

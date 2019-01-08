@@ -44,6 +44,8 @@ dependencies {
     implementation 'com.android.support:appcompat-v7:27.1.0'
     //compile 'com.github.kaaes:spotify-web-api-android:0.4.1'
     implementation project(":spotify-web-api-android-0.4.1")
+    implementation 'com.squareup.picasso:picasso:2.71828'
+    implementation 'com.makeramen:roundedimageview:2.3.0'
 
 
 
