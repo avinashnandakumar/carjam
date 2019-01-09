@@ -55,12 +55,21 @@ import android.support.v7.widget.RecyclerView;
 import android.telephony.SmsMessage;
 import android.text.method.ScrollingMovementMethod;
 import android.util.Log;
+import android.view.Gravity;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
+import android.view.animation.Animation;
+import android.view.animation.AnimationUtils;
 import android.widget.BaseAdapter;
+import android.widget.Button;
+import android.widget.CompoundButton;
+import android.widget.EditText;
 import android.widget.ImageButton;
 import android.widget.ImageView;
+import android.widget.PopupWindow;
+import android.widget.RadioGroup;
+import android.widget.Switch;
 import android.widget.TextView;
 import android.widget.Toast;
 
@@ -108,6 +117,8 @@ import static java.security.AccessController.getContext;
 
 
 public class MainActivity extends AppCompatActivity {
+
+    private static Boolean mainPower = true;
     private static final int REQUEST_CODE = 1337;
     private static final String REDIRECT_URI = "http://localhost:8888/callback";
     private static final String CLIENT_ID = "0407da6387be4e3aba45344f618f48cf";
@@ -116,8 +127,8 @@ public class MainActivity extends AppCompatActivity {
     private SpotifyAppRemote mSpotifyAppRemote;
     boolean mIsReceiverRegistered = false;
     private SmsReciever mReciever;
-    private Integer queueLimitPeriod = 10;
-    private Integer queueRefreshPeriod = 1; //minutes
+    private Integer queueLimitPeriod = 7;
+    private Integer queueRefreshPeriod = 20; //minutes
     private Map<String, Integer> queueLimit;
     private Map<String, Long> requesterTime;
     RecyclerView recyclerView;
@@ -132,6 +143,8 @@ public class MainActivity extends AppCompatActivity {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
+        queueLimitPeriod=7;
+        queueRefreshPeriod=20;
         queueLimit = new HashMap<String,Integer>();
         requesterTime = new HashMap<>();
         //requestAuthorization();
@@ -143,6 +156,13 @@ public class MainActivity extends AppCompatActivity {
         recyclerView.setLayoutManager(new LinearLayoutManager(this));
         getSupportActionBar().setDisplayOptions(ActionBar.DISPLAY_SHOW_CUSTOM);
         getSupportActionBar().setCustomView(R.layout.abs_layout);
+        ImageButton settingsButton = (ImageButton) findViewById(R.id.settings);
+        settingsButton.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                showPopup();
+            }
+        });
         AuthenticationRequest.Builder builder =
                 new AuthenticationRequest.Builder(CLIENT_ID, AuthenticationResponse.Type.TOKEN, REDIRECT_URI);
         builder.setScopes(new String[]{"streaming"});
@@ -562,8 +582,11 @@ public class MainActivity extends AppCompatActivity {
                         //deleteText(context, senderNumber, fullMessage);
                     }
                     for (int i = 0; i < toProcess.size(); i++) {
-                        addToQueue(senderNumber, toProcess.get(i));
-                        Thread.sleep(200);
+                        if(mainPower){
+                            addToQueue(senderNumber, toProcess.get(i));
+                            Thread.sleep(250);
+                        }
+
                     }
 
 
@@ -636,7 +659,7 @@ public class MainActivity extends AppCompatActivity {
 
                 }
                 else{
-                    Toast.makeText(this, "Sender is over the limit! Try again later. ", Toast.LENGTH_SHORT);
+                    Toast.makeText(this, "Sender is over the limit!", Toast.LENGTH_LONG);
                     //Toast.makeText(this, "Sender is over the limit!" , Toast.LENGTH_LONG).show();
                 }
             }
@@ -707,7 +730,7 @@ public class MainActivity extends AppCompatActivity {
     }
 
     public class QueueListAdapter extends RecyclerView.Adapter<QueueListAdapter.ViewHolder>{
-
+        int lastPosition = -1;
         List<songQ> fakeData = new LinkedList<>();//new String[]{"Sicko Mode", "God's Plan", "Nonstop", "HYFR", "Moonlight", "SAD!"};
         @Override
         public ViewHolder onCreateViewHolder(ViewGroup parent, int i){
@@ -739,6 +762,17 @@ public class MainActivity extends AppCompatActivity {
             while(temp==null){}
             vH.albumPhoto.setImageBitmap(temp);*/
             Picasso.get().load(fakeData.get(i).photoRequesting.url).into(vH.albumPhoto);
+            setAnimation(vH.itemView, i);
+        }
+        private void setAnimation(View viewToAnimate, int position)
+        {
+            // If the bound view wasn't previously displayed on screen, it's animated
+            if (position > lastPosition)
+            {
+                Animation animation = AnimationUtils.loadAnimation(getApplicationContext(), R.anim.push_left_in);
+                viewToAnimate.startAnimation(animation);
+                this.lastPosition = position;
+            }
         }
 
         @Override
@@ -905,7 +939,7 @@ public class MainActivity extends AppCompatActivity {
                 System.out.println(track.external_urls.toString() + "TRACK EXTERNAL URLS KAES");*/
                 songQ temp = new songQ(track.name, track.artists.get(0).name, track.id, nameSender, sender, track.album.images.get(0), info[0]);
                 //toReturn.add(temp);
-                Toast.makeText(getApplicationContext(), nameSender.toString() + " added " + track.name, Toast.LENGTH_SHORT);
+                Toast.makeText(getBaseContext(), nameSender.toString() + " added " + track.name, Toast.LENGTH_LONG);
                 QLA.addData(temp);
                 QLA.notifyDataSetChanged();
                 //QLA.notifyDataSetChanged();
@@ -945,5 +979,65 @@ public class MainActivity extends AppCompatActivity {
             bmImage = (result);
         }
     }
+    private PopupWindow pw;
+    private void showPopup() {
+        try {
+// We need to get the instance of the LayoutInflater
+            LayoutInflater inflater = (LayoutInflater)
+            getSystemService(Context.LAYOUT_INFLATER_SERVICE);
+            View layout = inflater.inflate(R.layout.popup_settings,
+                    (ViewGroup) findViewById(R.id.popup_1));
+            pw = new PopupWindow(layout, ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT, true );
+            pw.showAtLocation(layout, Gravity.CENTER, 0, 0);
+            EditText numberRequested = (EditText) layout.findViewById(R.id.requestsAllowed);
+            numberRequested.setText(queueLimitPeriod.toString());
+            EditText minutesRefreshed = (EditText) layout.findViewById(R.id.minuteRefresh);
+            minutesRefreshed.setText(queueRefreshPeriod.toString());
+            Button Close = (Button) layout.findViewById(R.id.close_popup);
+            Close.setOnClickListener(cancel_button);
+            Button Save = (Button) layout.findViewById(R.id.save);
+            Save.setOnClickListener(save_button);
+            Switch power = (Switch) layout.findViewById(R.id.power);
+            power.setOnCheckedChangeListener(powerSwitch);
+            power.setChecked(mainPower);
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+    }
+
+    private View.OnClickListener cancel_button = new View.OnClickListener() {
+        public void onClick(View v) {
+            pw.dismiss();
+        }
+    };
+    private Switch.OnCheckedChangeListener powerSwitch = new Switch.OnCheckedChangeListener() {
+        public void onCheckedChanged(CompoundButton buttonView, boolean isChecked) {
+            if (isChecked) {
+                mainPower= true;
+            } else {
+                mainPower=false;
+            }
+        }
+    };
+
+
+    private View.OnClickListener save_button = new View.OnClickListener(){
+        public void onClick(View v){
+
+            EditText numberRequested = (EditText) v.getRootView().findViewById(R.id.requestsAllowed);
+            EditText minutesRefreshed = (EditText) v.getRootView().findViewById(R.id.minuteRefresh);
+            if(numberRequested.getText() != null){
+                queueLimitPeriod = Integer.parseInt(numberRequested.getText().toString());
+                queueLimit.clear();
+                requesterTime.clear();
+
+            }
+            if(minutesRefreshed.getText() != null){
+                queueRefreshPeriod = Integer.parseInt(minutesRefreshed.getText().toString());
+            }
+            pw.dismiss();
+
+        }
+    };
 
 }
