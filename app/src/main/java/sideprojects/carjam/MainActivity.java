@@ -20,6 +20,7 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.Queue;
+import java.util.Stack;
 import java.util.regex.*;
 import android.content.BroadcastReceiver;
 import android.content.ContentResolver;
@@ -520,52 +521,58 @@ public class MainActivity extends AppCompatActivity {
         @Override
         public void onReceive(Context context, Intent intent) {
 
-
-            Bundle data  = intent.getExtras();
-            Object[] pdus = (Object[]) data.get("pdus");
-            String fullMessage = "";
-            String senderNumber= "";
-            for(int i=0;i<pdus.length;i++){
-                SmsMessage smsMessage = SmsMessage.createFromPdu((byte[]) pdus[i]);
-                String sender = smsMessage.getDisplayOriginatingAddress();
-                senderNumber = sender;
-                //Check the sender to filter messages which we require to read
-                String messageBody = smsMessage.getMessageBody();
-                fullMessage += messageBody;
-                //System.out.println(messageBody);
-                //System.out.println(messageBody.substring(6,15));
-                //messageBody = " a song f";
-                //System.out.println(messageBody);
-                //System.out.println(" ");
-            }
-            //System.out.println(fullMessage);
-            Pattern p2 = Pattern.compile("a song for you");
-            Matcher matcher2 = p2.matcher(fullMessage);
-            Pattern p3 = Pattern.compile("https://open.spotify.com");
-            Matcher matcher3 = p3.matcher(fullMessage);
-            if(matcher2.find() || matcher3.find()){
-                //String temp = messageBody.substring(6, 15);
-                //if (temp.equals(" a song f")) {
-                System.out.println("In the loop");
-                //updateMessage(fullMessage);
-                Pattern p = Pattern.compile("https.*\\?");
-                Matcher matcher = p.matcher(fullMessage);
-                ArrayList<String> toProcess = new ArrayList<>();
-                while (matcher.find()) {
-                    System.out.println(matcher.group());
-                    String songToQueue = matcher.group();
-                    String songId = songToQueue.substring(31,songToQueue.length()-1);
-                    System.out.println(songId);
-                    toProcess.add(songId);
-                    //addToQueue(senderNumber, songId);
-                    //deleteText(context, senderNumber, fullMessage);
+            try {
+                Bundle data = intent.getExtras();
+                Object[] pdus = (Object[]) data.get("pdus");
+                String fullMessage = "";
+                String senderNumber = "";
+                for (int i = 0; i < pdus.length; i++) {
+                    SmsMessage smsMessage = SmsMessage.createFromPdu((byte[]) pdus[i]);
+                    String sender = smsMessage.getDisplayOriginatingAddress();
+                    senderNumber = sender;
+                    //Check the sender to filter messages which we require to read
+                    String messageBody = smsMessage.getMessageBody();
+                    fullMessage += messageBody;
+                    //System.out.println(messageBody);
+                    //System.out.println(messageBody.substring(6,15));
+                    //messageBody = " a song f";
+                    //System.out.println(messageBody);
+                    //System.out.println(" ");
                 }
-                for(int i =0 ;i<toProcess.size(); i++){
-                    addToQueue(senderNumber, toProcess.get(i));
-                }
+                //System.out.println(fullMessage);
+                Pattern p2 = Pattern.compile("a song for you");
+                Matcher matcher2 = p2.matcher(fullMessage);
+                Pattern p3 = Pattern.compile("https://open.spotify.com");
+                Matcher matcher3 = p3.matcher(fullMessage);
+                if (matcher2.find() || matcher3.find()) {
+                    //String temp = messageBody.substring(6, 15);
+                    //if (temp.equals(" a song f")) {
+                    System.out.println("In the loop");
+                    //updateMessage(fullMessage);
+                    Pattern p = Pattern.compile("https.*\\?");
+                    Matcher matcher = p.matcher(fullMessage);
+                    List<String> toProcess = new LinkedList<>();
+                    while (matcher.find()) {
+                        System.out.println(matcher.group());
+                        String songToQueue = matcher.group();
+                        String songId = songToQueue.substring(31, songToQueue.length() - 1);
+                        System.out.println(songId);
+                        toProcess.add(songId);
+                        //addToQueue(senderNumber, songId);
+                        //deleteText(context, senderNumber, fullMessage);
+                    }
+                    for (int i = 0; i < toProcess.size(); i++) {
+                        addToQueue(senderNumber, toProcess.get(i));
+                        Thread.sleep(200);
+                    }
 
-            } else {
-                System.out.println("Didnot go in the loop");
+
+                } else {
+                    System.out.println("Didnot go in the loop");
+                }
+                //QLA.notifyDataSetChanged();
+            } catch (Exception e) {
+                System.out.println("delay error");
             }
         }
     }
@@ -612,33 +619,38 @@ public class MainActivity extends AppCompatActivity {
     }
     private void addToQueue(String sender, String songId) {
         System.out.println(sender);
-        if(queueLimit.containsKey(sender)){
-            if(((System.currentTimeMillis() - requesterTime.get(sender))/60000)> queueRefreshPeriod){
-                requesterTime.remove(sender);
-                requesterTime.put(sender, System.currentTimeMillis());
-                queueLimit.put(sender, queueLimitPeriod);
-            }
-            if(queueLimit.get(sender) > 0){
-                queueLimit.put(sender, queueLimit.get(sender)-1);
-                mSpotifyAppRemote.getPlayerApi().queue("spotify:track:"+songId);
-                //updateQueueUI(sender, songId);
-                getTrackInfo(songId, sender, queueLimitPeriod- queueLimit.get(sender));
-                Toast.makeText(this, "New Song Added to Queue", Toast.LENGTH_LONG).show();
+
+            if(queueLimit.containsKey(sender)){
+                if(((System.currentTimeMillis() - requesterTime.get(sender))/60000)> queueRefreshPeriod){
+                    requesterTime.put(sender, System.currentTimeMillis());
+                    queueLimit.put(sender, queueLimitPeriod);
+                }
+                if(queueLimit.get(sender) > 0){
+                    queueLimit.put(sender, queueLimit.get(sender)-1);
+                    mSpotifyAppRemote.getPlayerApi().queue("spotify:track:"+songId);
+                    //updateQueueUI(sender, songId);
+                    getTrackInfo(songId, sender, queueLimitPeriod- queueLimit.get(sender));
+                    //QLA.addData(temp.get(0));
+                    //QLA.notifyItemInserted(QLA.fakeData.size()-1);
+                    //Toast.makeText(this, "New Song Added to Queue", Toast.LENGTH_LONG).show();
+
+                }
+                else{
+                    Toast.makeText(this, "Sender is over the limit! Try again later. ", Toast.LENGTH_SHORT);
+                    //Toast.makeText(this, "Sender is over the limit!" , Toast.LENGTH_LONG).show();
+                }
             }
             else{
-                Toast.makeText(this, "Sender is over the limit! Try again later. ", Toast.LENGTH_SHORT);
-                Toast.makeText(this, "Sender is over the limit!" , Toast.LENGTH_LONG).show();
+                queueLimit.put(sender, queueLimitPeriod-1);
+                requesterTime.put(sender, System.currentTimeMillis());
+                getTrackInfo(songId, sender, 1);
+                //QLA.addData(temp.get(0));
+                mSpotifyAppRemote.getPlayerApi().queue("spotify:track:"+songId);
+                //Toast.makeText(this, "New Song Added to Queue", Toast.LENGTH_LONG).show();
             }
         }
-        else{
-            queueLimit.put(sender, queueLimitPeriod-1);
-            requesterTime.put(sender, System.currentTimeMillis());
-            getTrackInfo(songId, sender, 1);
-            mSpotifyAppRemote.getPlayerApi().queue("spotify:track:"+songId);
-            Toast.makeText(this, "New Song Added to Queue", Toast.LENGTH_LONG).show();
-        }
 
-    }
+
 
     public void skipTrack(View view){
         mSpotifyAppRemote.getPlayerApi().skipNext();
@@ -722,7 +734,11 @@ public class MainActivity extends AppCompatActivity {
             riv.setTileModeY(Shader.TileMode.REPEAT);
             //System.out.println(fakeData.get(i).photoRequesting.url);
             vH.numberRequested.setText(fakeData.get(i).requesterNumber.toString() + "/" + queueLimitPeriod.toString());
-            new DownloadImageTask(vH.albumPhoto).execute(fakeData.get(i).photoRequesting.url);
+            /*Bitmap temp = null;
+            new DownloadImageTask(temp).execute(fakeData.get(i).photoRequesting.url);
+            while(temp==null){}
+            vH.albumPhoto.setImageBitmap(temp);*/
+            Picasso.get().load(fakeData.get(i).photoRequesting.url).into(vH.albumPhoto);
         }
 
         @Override
@@ -731,6 +747,9 @@ public class MainActivity extends AppCompatActivity {
         }
         public void addData(songQ temp){
             fakeData.add(temp);
+        }
+        public void addMultipleData(List<songQ> temp){
+            fakeData.addAll(temp);
         }
         class ViewHolder extends RecyclerView.ViewHolder{
             CardView cardView;
@@ -867,13 +886,16 @@ public class MainActivity extends AppCompatActivity {
         queue.add(getRequest);
     }*/
 
-    public void getTrackInfo(String songId, String sender, Integer trackNumber){
+
+    public List<songQ> getTrackInfo(String songId, String sender, Integer trackNumber){
         Integer[] info = new Integer[3];
         info[0] = trackNumber;
+        List<songQ> toReturn = new ArrayList<songQ>();
         spotify.getTrack(songId, new Callback<kaaes.spotify.webapi.android.models.Track>() {
             @Override
             public void success(kaaes.spotify.webapi.android.models.Track track, retrofit.client.Response response) {
                 Log.d("Track success", track.name);
+
                 /*inter[0] = track.name;
                 inter[1] = track.artists.get(0).name;
                 inter[2] = track.id;*/
@@ -882,23 +904,27 @@ public class MainActivity extends AppCompatActivity {
                 System.out.println(track.uri + "TRACK URIS ");
                 System.out.println(track.external_urls.toString() + "TRACK EXTERNAL URLS KAES");*/
                 songQ temp = new songQ(track.name, track.artists.get(0).name, track.id, nameSender, sender, track.album.images.get(0), info[0]);
+                //toReturn.add(temp);
+                Toast.makeText(getApplicationContext(), nameSender.toString() + " added " + track.name, Toast.LENGTH_SHORT);
                 QLA.addData(temp);
                 QLA.notifyDataSetChanged();
+                //QLA.notifyDataSetChanged();
             }
 
             @Override
             public void failure(RetrofitError error) {
                 Log.d("Track failure", error.toString());
+
             }
         });
 
-
+        return toReturn;
     }
 
     private class DownloadImageTask extends AsyncTask<String, Void, Bitmap> {
-        ImageView bmImage;
+        Bitmap bmImage;
 
-        public DownloadImageTask(ImageView bmImage) {
+        public DownloadImageTask(Bitmap downloadedImage){//ImageView bmImage) {
             this.bmImage = bmImage;
         }
 
@@ -916,7 +942,7 @@ public class MainActivity extends AppCompatActivity {
         }
 
         protected void onPostExecute(Bitmap result) {
-            bmImage.setImageBitmap(result);
+            bmImage = (result);
         }
     }
 
