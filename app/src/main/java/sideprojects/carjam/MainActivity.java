@@ -448,13 +448,13 @@ public class MainActivity extends AppCompatActivity {
         if (requestCode == MY_PERMISSIONS_REQUEST_SMS_RECEIVE) {
             // YES!!
             System.out.println("DUCKYES");
-            Log.i("TAG", "MY_PERMISSIONS_REQUEST_SMS_RECEIVE --> YES");
+           // Log.i("TAG", "MY_PERMISSIONS_REQUEST_SMS_RECEIVE --> YES");
 
         }
         else if (requestCode == 100) {
             // YES!!
             System.out.println("roaster");
-            Log.i("TAG", "CONTACTS --> YES");
+          //  Log.i("TAG", "CONTACTS --> YES");
             //updateQueueUI("+18056035340", null);
 
         }
@@ -491,7 +491,7 @@ public class MainActivity extends AppCompatActivity {
                                 @Override
                                 public void onConnected(SpotifyAppRemote spotifyAppRemote) {
                                     mSpotifyAppRemote = spotifyAppRemote;
-                                    Log.d("MainActivity", "Connected! Yay!");
+                                  //  Log.d("MainActivity", "Connected! Yay!");
 
                                     // Now you can start interacting with App Remote
                                     connected();
@@ -499,7 +499,7 @@ public class MainActivity extends AppCompatActivity {
 
                                 @Override
                                 public void onFailure(Throwable throwable) {
-                                    Log.e("MainActivity", throwable.getMessage(), throwable);
+                                   // Log.e("MainActivity", throwable.getMessage(), throwable);
 
                                     // Something went wrong when attempting to connect! Handle errors here
                                 }
@@ -750,7 +750,13 @@ public class MainActivity extends AppCompatActivity {
             riv.setBorderWidth((float) 2);
             riv.setBorderColor(Color.DKGRAY);
             riv.mutateBackground(true);
-            riv.setImageBitmap(fakeData.get(i).senderPhoto);
+            Bitmap temp = fakeData.get(i).senderPhoto;
+            if(temp==null){
+                //riv.setBackgroundResource(android.R.drawable.sym_def_app_icon);
+            }
+            else{
+                riv.setImageBitmap(temp);
+            }
             //riv.setBackground(backgroundDrawable);
             riv.setOval(true);
             riv.setTileModeX(Shader.TileMode.REPEAT);
@@ -852,7 +858,9 @@ public class MainActivity extends AppCompatActivity {
             }
 
             assert inputStream != null;
-            inputStream.close();
+            if (inputStream!=null){
+                inputStream.close();
+            }
 
         } catch (IOException e) {
             e.printStackTrace();
@@ -928,7 +936,7 @@ public class MainActivity extends AppCompatActivity {
         spotify.getTrack(songId, new Callback<kaaes.spotify.webapi.android.models.Track>() {
             @Override
             public void success(kaaes.spotify.webapi.android.models.Track track, retrofit.client.Response response) {
-                Log.d("Track success", track.name);
+                //Log.d("Track success", track.name);
 
                 /*inter[0] = track.name;
                 inter[1] = track.artists.get(0).name;
@@ -947,7 +955,7 @@ public class MainActivity extends AppCompatActivity {
 
             @Override
             public void failure(RetrofitError error) {
-                Log.d("Track failure", error.toString());
+               // Log.d("Track failure", error.toString());
 
             }
         });
@@ -969,7 +977,7 @@ public class MainActivity extends AppCompatActivity {
                 InputStream in = new java.net.URL(urldisplay).openStream();
                 mIcon11 = BitmapFactory.decodeStream(in);
             } catch (Exception e) {
-                Log.e("Error", e.getMessage());
+               // Log.e("Error", e.getMessage());
                 e.printStackTrace();
             }
             return mIcon11;
