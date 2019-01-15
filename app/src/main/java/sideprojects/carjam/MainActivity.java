@@ -466,6 +466,8 @@ public class MainActivity extends AppCompatActivity {
         //SpotifyAppRemote.disconnect(mSpotifyAppRemote);
         // Aaand we will finish off here.
     }
+
+
     @Override
     protected void onActivityResult(int requestCode, int resultCode, Intent intent) {
         super.onActivityResult(requestCode, resultCode, intent);
