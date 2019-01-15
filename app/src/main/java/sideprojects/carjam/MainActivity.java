@@ -390,12 +390,12 @@ public class MainActivity extends AppCompatActivity {
 
         // Then we will write some more code here
         ActivityCompat.requestPermissions(this,
-                new String[]{Manifest.permission.RECEIVE_SMS},
+                new String[]{Manifest.permission.RECEIVE_SMS, Manifest.permission.READ_CONTACTS, Manifest.permission.SEND_SMS},
                 MY_PERMISSIONS_REQUEST_SMS_RECEIVE);
-        ActivityCompat.requestPermissions(this,
-                new String[]{Manifest.permission.SEND_SMS},
+        /*ActivityCompat.requestPermissions(this,
+                new String[]{},
                 24);
-        ActivityCompat.requestPermissions(this, new String[]{Manifest.permission.READ_CONTACTS}, 100);
+        ActivityCompat.requestPermissions(this, new String[]{}, 100);*/
 
 
     }
@@ -466,6 +466,8 @@ public class MainActivity extends AppCompatActivity {
         //SpotifyAppRemote.disconnect(mSpotifyAppRemote);
         // Aaand we will finish off here.
     }
+
+
     @Override
     protected void onActivityResult(int requestCode, int resultCode, Intent intent) {
         super.onActivityResult(requestCode, resultCode, intent);
